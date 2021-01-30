@@ -44,7 +44,7 @@ class Model(nn.Module):
                            for i in range(self.n_layers)]
         self.layers = nn.ModuleList(self.layers)
         
-        # dropout layer, we do not use dropout for the entire experiment (i.e., p = 0)
+        # dropout layer
         self.dropout = nn.Dropout(p=p)
         
         # activation function
