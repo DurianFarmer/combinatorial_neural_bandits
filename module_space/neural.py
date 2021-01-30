@@ -40,9 +40,9 @@ class Neural(UCB_TS):
         
         self.use_cuda = use_cuda
         if self.use_cuda:
-            raise Exception(
-                'Not yet CUDA compatible : TODO for later (not necessary to obtain good results')
-        self.device = torch.device('cuda' if torch.cuda.is_available() and self.use_cuda else 'cpu')
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device('cpu')
     
         # dropout rate
         self.p = p
@@ -88,10 +88,10 @@ class Neural(UCB_TS):
             self.model.zero_grad()
             y = self.model(x)
             y.backward()
-            
-            self.grad_approx[a] = torch.cat(
-                [w.grad.detach().flatten() / np.sqrt(self.hidden_size) for w in self.model.parameters() if w.requires_grad]
-            ).to(self.device)
+                        
+            tmp = [w.grad.detach().flatten() / np.sqrt(self.hidden_size) \
+                   for w in self.model.parameters() if w.requires_grad]
+            self.grad_approx[a] = torch.cat(tmp).to("cpu")            
             
     def reset(self):
         """Reset the internal estimates.
@@ -110,7 +110,7 @@ class Neural(UCB_TS):
 
     ## torch Parameter object to Tensor object
     def param_to_tensor(self, parameters):
-        a = torch.empty(1)
+        a = torch.empty(1, device = self.device)
         for p in parameters:
             a = torch.cat((a, p.data.flatten()))
         return a[1:]    
@@ -131,12 +131,12 @@ class Neural(UCB_TS):
         self.model.train()
         for _ in range(self.epochs):
             ## computing the regularization parameter
-            param_diff = np.linalg.norm( self.param_to_tensor(self.model.parameters()) - self.init_param )
-            reg = (self.reg_factor*self.hidden_size*param_diff**2)/2
+            param_diff = np.linalg.norm( (self.param_to_tensor(self.model.parameters()) - self.init_param).to("cpu") )
+            regularization = (self.reg_factor*self.hidden_size*param_diff**2)/2
 
             ## update weight
             y_pred = self.model.forward(x_train).squeeze()
-            loss = nn.MSELoss(reduction='sum')(y_train, y_pred)/2 + reg            
+            loss = nn.MSELoss(reduction='sum')(y_train, y_pred)/2 + regularization            
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -148,5 +148,5 @@ class Neural(UCB_TS):
         self.model.eval()
         self.mu_hat[self.iteration] = self.model.forward(
             torch.FloatTensor(self.bandit.features[self.iteration]).to(self.device)
-        ).detach().squeeze()    
+        ).detach().squeeze().to("cpu")    
         

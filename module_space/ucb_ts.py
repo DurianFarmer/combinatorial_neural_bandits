@@ -210,7 +210,7 @@ class UCB_TS(abc.ABC):
         """
         postfix = {
             'total regret': 0.0,
-            '% optimal super arm': 0.0,
+            '% optimal set of arms': 0.0,
         }
         with tqdm(total=self.bandit.T, postfix=postfix) as pbar:
             for t in range(self.bandit.T):                
