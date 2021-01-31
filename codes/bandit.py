@@ -78,7 +78,7 @@ class ContextualBandit():
         ).reshape(self.T, self.n_arms)
 
         ## to be used only to compute regret, NOT by the algorithm itself        
-        a = self.rewards.to(torch.device('cpu')).numpy()
+        a = self.rewards.to('cpu').numpy()
         ind = np.argpartition(a, -1*self.n_assortment, axis=1)[:,-1*self.n_assortment:]        
         s_ind = np.array([list(ind[i][np.argsort(a[i][ind[i]])][::-1]) for i in range(0, np.shape(a)[0])])
         
