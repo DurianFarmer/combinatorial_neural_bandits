@@ -23,7 +23,7 @@ class Neural(UCB_TS):
                  epochs=1,
                  training_period=1,
                  throttle=1,
-                 use_cuda=False,
+                 device=torch.device('cpu'),
                 ):
 
         # hidden size of the NN layers
@@ -38,12 +38,8 @@ class Neural(UCB_TS):
         self.learning_rate = learning_rate
         self.epochs = epochs
         
-        self.use_cuda = use_cuda
-        if self.use_cuda:
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        else:
-            self.device = torch.device('cpu')
-    
+        self.device = device
+            
         # dropout rate
         self.p = p
 
@@ -63,6 +59,7 @@ class Neural(UCB_TS):
                          delta=delta,
                          throttle=throttle,
                          training_period=training_period,
+                         device=self.device
                         )
 
     @property
@@ -82,16 +79,19 @@ class Neural(UCB_TS):
         """
         for a in self.bandit.arms:
             x = torch.FloatTensor(
-                self.bandit.features[self.iteration, a].reshape(1,-1)
+                self.bandit.features[self.iteration, a].reshape(1,-1).float()
             ).to(self.device)
             
             self.model.zero_grad()
             y = self.model(x)
             y.backward()
-                        
-            tmp = [w.grad.detach().flatten() / np.sqrt(self.hidden_size) \
-                   for w in self.model.parameters() if w.requires_grad]
-            self.grad_approx[a] = torch.cat(tmp).to("cpu")            
+            
+            sqrt_m = float(np.sqrt(self.hidden_size))            
+            self.grad_approx[a] = torch.cat([
+                w.grad.detach().flatten() / sqrt_m 
+                for w in self.model.parameters() if w.requires_grad]
+            ).to(self.device)
+            
             
     def reset(self):
         """Reset the internal estimates.
@@ -110,10 +110,10 @@ class Neural(UCB_TS):
 
     ## torch Parameter object to Tensor object
     def param_to_tensor(self, parameters):
-        a = torch.empty(1, device = self.device)
+        a = torch.empty(1).to(self.device)
         for p in parameters:
             a = torch.cat((a, p.data.flatten()))
-        return a[1:]    
+        return a[1:].to(self.device)    
         
     def train(self):
         """Train neural approximator.        
@@ -133,8 +133,8 @@ class Neural(UCB_TS):
             self.model.train()
             for _ in range(self.epochs):
                 ## computing the regularization parameter
-                tmp = self.param_to_tensor(self.model.parameters()) - self.init_param
-                param_diff = np.linalg.norm( tmp.to("cpu") )
+                tmp = (self.param_to_tensor(self.model.parameters()) - self.init_param).to(torch.device('cpu')).numpy()
+                param_diff = torch.from_numpy(np.linalg.norm(tmp))
                 regularization = (self.reg_factor*self.hidden_size*param_diff**2)/2
 
                 ## update weight
@@ -151,7 +151,6 @@ class Neural(UCB_TS):
         """Predict reward.
         """
         # eval mode
-        self.model.eval()
-        tmp = self.model.forward(torch.FloatTensor(self.bandit.features[self.iteration]).to(self.device)).detach().squeeze()
-        self.mu_hat[self.iteration] = tmp.to('cpu')
+        self.model.eval()        
+        self.mu_hat[self.iteration] = self.model.forward(torch.FloatTensor(self.bandit.features[self.iteration])).detach().squeeze()
         

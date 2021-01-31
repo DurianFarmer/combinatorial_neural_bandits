@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from .ucb_ts import UCB_TS
 
 
@@ -14,14 +15,12 @@ class Lin(UCB_TS):
                  confidence_scaling_factor=1, ## for UCB                 
                  exploration_variance=1, ## for TS
                  throttle=int(1e2),
+                 device=torch.device('cpu')
                 ):
 
         # range of the linear predictors
         self.bound_theta = bound_theta
         
-        # maximum L2 norm for the features across all arms and all rounds
-        self.bound_features = np.max(np.linalg.norm(bandit.features, ord=2, axis=-1))
-
         super().__init__(ucb_ts, 
                          bandit, 
                          reg_factor=reg_factor,
@@ -30,6 +29,7 @@ class Lin(UCB_TS):
                          delta=delta,
                          throttle=throttle,
                         )
+        self.device = device
 
     @property
     def approximator_dim(self):
@@ -63,23 +63,23 @@ class Lin(UCB_TS):
     def confidence_multiplier(self):
         """Use exploration variance (nu) instead of confidence scaling factor (gamma)
         """
-        return self.exploration_variance
+        return self.confidence_scaling_factor
     
 
     def train(self):
         """Update linear predictor theta.
         """        
-        self.theta = np.matmul(self.A_inv, self.b)                      
-        self.b += np.sum(np.array(\
+        self.theta = torch.matmul(self.A_inv, self.b)                      
+        self.b += torch.sum(torch.Tensor(\
                                   [ self.bandit.rewards[self.iteration][i]*self.bandit.features[self.iteration, self.action][i] \
                                    for i in range(0, self.bandit.n_assortment) ] \
-                                 ), axis = 0)                      
+                                 ), dim = 0)                      
             
     def predict(self):
         """Predict reward.
         """
-        self.mu_hat[self.iteration] = np.array(
+        self.mu_hat[self.iteration] = torch.Tesnor(
             [
-                np.dot(self.bandit.features[self.iteration, a], self.theta) for a in self.bandit.arms
+                torch.dot(self.bandit.features[self.iteration, a], self.theta) for a in self.bandit.arms
             ]
         )

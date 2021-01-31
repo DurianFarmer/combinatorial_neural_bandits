@@ -1,7 +1,7 @@
 import numpy as np
+import torch
 import abc
 from tqdm import tqdm
-
 from .utils import inv_sherman_morrison_iter
 
 class UCB_TS(abc.ABC):
@@ -16,6 +16,7 @@ class UCB_TS(abc.ABC):
                  delta=0.1,
                  training_period=1,
                  throttle=int(1e2),
+                 device=torch.device('cpu')
                 ):
         ## select whether UCB or TS
         self.ucb_ts = ucb_ts
@@ -38,6 +39,9 @@ class UCB_TS(abc.ABC):
         # throttle tqdm updates
         self.throttle = throttle
         
+        # device
+        self.device = device
+        
         self.reset()
     
     ## for UCB
@@ -45,9 +49,9 @@ class UCB_TS(abc.ABC):
         """Initialize upper confidence bounds and related quantities.
         """
         if self.ucb_ts == "UCB":
-            self.exploration_bonus = np.empty((self.bandit.T, self.bandit.n_arms))
-            self.mu_hat = np.zeros((self.bandit.T, self.bandit.n_arms)) 
-            self.upper_confidence_bounds = np.ones((self.bandit.T, self.bandit.n_arms))
+            self.exploration_bonus = torch.zeros((self.bandit.T, self.bandit.n_arms)).to(self.device)
+            self.mu_hat = torch.zeros((self.bandit.T, self.bandit.n_arms)).to(self.device)
+            self.upper_confidence_bounds = torch.ones((self.bandit.T, self.bandit.n_arms)).to(self.device)
         else:
             pass
 
@@ -56,47 +60,47 @@ class UCB_TS(abc.ABC):
         """Initialize sample rewards and related quantities.
         """
         if self.ucb_ts == "TS":
-            self.sigma_square = np.ones((self.bandit.T, self.bandit.n_arms))
-            self.mu_hat = np.zeros((self.bandit.T, self.bandit.n_arms)) 
-            self.sample_rewards = np.zeros((self.bandit.T, self.bandit.n_arms, self.bandit.n_samples))
-            self.optimistic_sample_rewards = np.zeros((self.bandit.T, self.bandit.n_arms))
+            self.sigma_square = torch.ones((self.bandit.T, self.bandit.n_arms)).to(self.device)
+            self.mu_hat = torch.zeros((self.bandit.T, self.bandit.n_arms)).to(self.device)
+            self.sample_rewards = torch.zeros((self.bandit.T, self.bandit.n_arms, self.bandit.n_samples)).to(self.device)
+            self.optimistic_sample_rewards = torch.zeros((self.bandit.T, self.bandit.n_arms)).to(self.device)
         else:
             pass
     
     def reset_regrets(self):
         """Initialize regrets.
         """
-        self.regrets = np.empty(self.bandit.T)
+        self.regrets = torch.zeros(self.bandit.T).to(self.device)
 
     def reset_actions(self):
         """Initialize cache of actions (actions: played set of arms of each round).
         """
-        self.actions = np.empty((self.bandit.T, self.bandit.n_assortment)).astype('int')
+        self.actions = torch.zeros((self.bandit.T, self.bandit.n_assortment)).to(self.device)
     
     def reset_A_inv(self):
         """Initialize n_arms square matrices representing the inverses
         of exploration bonus matrices.
         """
-        self.A_inv = np.eye(self.approximator_dim)/self.reg_factor        
+        self.A_inv = torch.eye(self.approximator_dim).to(self.device)/self.reg_factor        
     
     def reset_grad_approx(self):
         """Initialize the gradient of the approximator w.r.t its parameters.
         """
-        self.grad_approx = np.zeros((self.bandit.n_arms, self.approximator_dim))        
+        self.grad_approx = torch.zeros((self.bandit.n_arms, self.approximator_dim)).to(self.device)
         
     def sample_action(self):        
         """Return the action (set of arms) to play based on current estimates
         """
         ## for UCB
         if self.ucb_ts == "UCB":
-            a = self.upper_confidence_bounds[self.iteration]        
+            a = self.upper_confidence_bounds[self.iteration].to(torch.device('cpu')).numpy()
         ## for TS
         if self.ucb_ts == "TS":
-            a = self.optimistic_sample_rewards[self.iteration]
+            a = self.optimistic_sample_rewards[self.iteration].to(torch.device('cpu')).numpy()
 
         ind = np.argpartition(a, -1*self.bandit.n_assortment)[-1*self.bandit.n_assortment:]
-        s_ind = ind[np.argsort(a[ind])][::-1].astype('int')
-        return s_ind                
+        s_ind = ind[np.argsort(a[ind])][::-1]
+        return s_ind.to(self.device)               
 
     @abc.abstractmethod
     def reset(self):
@@ -155,9 +159,9 @@ class UCB_TS(abc.ABC):
         self.update_output_gradient()
         
         # UCB exploration bonus
-        self.exploration_bonus[self.iteration] = np.array(
+        self.exploration_bonus[self.iteration] = torch.Tensor(
             [
-                self.confidence_multiplier * np.sqrt(np.dot(self.grad_approx[a], np.dot(self.A_inv, self.grad_approx[a].T))) for a in self.bandit.arms
+                self.confidence_multiplier * torch.sqrt(torch.dot(self.grad_approx[a], torch.dot(self.A_inv, self.grad_approx[a].T))) for a in self.bandit.arms
             ]
         )        
         
@@ -176,20 +180,20 @@ class UCB_TS(abc.ABC):
         
         # update sigma_square        
         self.sigma_square[self.iteration] = [self.reg_factor * \
-                                             np.dot(self.grad_approx[a], np.dot(self.A_inv, self.grad_approx[a].T)) \
+                                             torch.dot(self.grad_approx[a], torch.dot(self.A_inv, self.grad_approx[a].T)) \
                                              for a in self.bandit.arms]
                 
         # update reward prediction mu_hat
         self.predict()
         
         # update sample reward
-        self.sample_rewards[self.iteration] = [np.random.normal(loc = self.mu_hat[self.iteration, a], \
+        self.sample_rewards[self.iteration] = [torch.random.normal(loc = self.mu_hat[self.iteration, a], \
                                                                 scale = (self.exploration_variance**2) * self.sigma_square[self.iteration, a], \
                                                                 size = self.bandit.n_samples) \
                                                for a in self.bandit.arms]        
         
         # update optimistic sample reward for each arm
-        self.optimistic_sample_rewards[self.iteration] = np.max(self.sample_rewards[self.iteration], axis=-1)
+        self.optimistic_sample_rewards[self.iteration] = torch.max(self.sample_rewards[self.iteration], dim=-1)
         
     def update_A_inv(self):
         """Update A_inv by using an iteration of Sherman_Morrison formula

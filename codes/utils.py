@@ -1,13 +1,7 @@
 import numpy as np
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-def inv_sherman_morrison(u, A_inv):
-    """Inverse of a matrix with rank 1 update.
-    """
-    Au = np.dot(A_inv, u)
-    A_inv -= np.outer(Au, Au)/(1+np.dot(u.T, Au))
-    return A_inv
 
 ## for combinatorial bandits
 def inv_sherman_morrison_iter(a, A_inv):
@@ -15,8 +9,8 @@ def inv_sherman_morrison_iter(a, A_inv):
     """
     temp = A_inv    
     for u in a:                     
-        Au = np.dot(temp, u)
-        temp = temp - np.outer(Au, Au)/(1+np.dot(u.T, Au))    
+        Au = torch.dot(temp, u)
+        temp = temp - torch.outer(Au, Au)/(1+torch.dot(u.T, Au))    
     return temp       
 
 class Model(nn.Module):
