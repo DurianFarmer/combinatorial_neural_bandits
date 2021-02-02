@@ -785,29 +785,9 @@ else:
 # In[ ]:
 
 
-device
+device = torch.device('cpu')
 
 
-# ### d=40, m=20
-
-# ### (h1)
-
-# In[ ]:
-
-
-experiment(Neural, "UCB", h1, n_features=40, hidden_size=20, save='reg_h1_CNUCB_40_20')
-
-
-# In[ ]:
-
-
-experiment(Neural, "TS", h1, n_features=40, hidden_size=20, save='reg_h1_CNTS(M=1)_40_20')
-
-
-# In[ ]:
-
-
-experiment(Neural, "TS", h1, n_features=40, hidden_size=20, n_samples=10, save='reg_h1_CNTS_40_20')
 
 
 # ### (h2)
@@ -815,57 +795,16 @@ experiment(Neural, "TS", h1, n_features=40, hidden_size=20, n_samples=10, save='
 # In[ ]:
 
 
-experiment(Neural, "UCB", h2, n_features=40, hidden_size=20, save='reg_h2_CNUCB_40_20')
+experiment(Neural, "UCB", h2, n_features=80, hidden_size=60, save='reg_h2_CNUCB_80_60')
 
 
 # In[ ]:
 
 
-experiment(Neural, "TS", h2, n_features=40, hidden_size=20, save='reg_h2_CNTS(M=1)_40_20')
+experiment(Neural, "TS", h2, n_features=80, hidden_size=60, save='reg_h2_CNTS(M=1)_80_60')
 
 
 # In[ ]:
 
 
-experiment(Neural, "TS", h2, n_features=40, hidden_size=20, n_samples=10, save='reg_h2_CNTS_40_20')
-
-
-# ### (h3)
-
-# In[ ]:
-
-
-experiment(Neural, "UCB", h3, n_features=40, hidden_size=20, save='reg_h3_CNUCB_40_20')
-
-
-# In[ ]:
-
-
-experiment(Neural, "TS", h3, n_features=40, hidden_size=20, save='reg_h3_CNTS(M=1)_40_20')
-
-
-# In[ ]:
-
-
-experiment(Neural, "TS", h3, n_features=40, hidden_size=20, n_samples=10, save='reg_h3_CNTS_40_20')
-
-
-# ### (h4)
-
-# In[ ]:
-
-
-experiment(Neural, "UCB", h4, n_features=40, hidden_size=20, save='reg_h4_CNUCB_40_20')
-
-
-# In[ ]:
-
-
-experiment(Neural, "TS", h4, n_features=40, hidden_size=20, save='reg_h4_CNTS(M=1)_40_20')
-
-
-# In[ ]:
-
-
-experiment(Neural, "TS", h4, n_features=40, hidden_size=20, n_samples=10, save='reg_h4_CNTS_40_20')
-
+experiment(Neural, "TS", h2, n_features=80, hidden_size=60, n_samples=10, save='reg_h2_CNTS_80_60')

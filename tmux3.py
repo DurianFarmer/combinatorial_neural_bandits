@@ -19,7 +19,10 @@ import torch.nn as nn
 
 if not os.path.exists('regrets'):
     os.mkdir('regrets')
-
+        
+if not os.path.exists('regrets/unif'):
+    os.mkdir('regrets/unif')
+        
 SEED_HIDDEN = 1000
 SEED_FEATURE = 2000
 SEED_NOISE = 3000
@@ -29,19 +32,19 @@ SEED_NOISE = 3000
 # ### Hidden functions
 # - Linear: $h_{1}(\mathbf{x}_{t,i}) = \mathbf{x}_{t,i}^{\top}\mathbf{a}$
 # - Quadratic: $h_{2}(\mathbf{x}_{t,i}) = (\mathbf{x}_{t,i}^{\top}\mathbf{a})^{2}$
-# - Non-linear: $h_{3}(\mathbf{x}_{t,i}) = \cos(\pi \mathbf{x}_{t,i}^{\top}\mathbf{a})$
+# - Cos: $h_{3}(\mathbf{x}_{t,i}) = \cos(\pi \mathbf{x}_{t,i}^{\top}\mathbf{a})$
+# - Sin: $h_{3}(\mathbf{x}_{t,i}) = \sin(\pi \mathbf{x}_{t,i}^{\top}\mathbf{a})$
 # - where $\mathbf{a} \sim N(0,1)$ and then normalized
 # 
 # ### For each hidden function, compare the following algorithms
 # - CombLinUCB
 # - CombLinTS
 # - CN-UCB
-# - CN-TS(1): single reward sample
-# - CN-TS(30): optimistic sampling, sample size = 30 (default sample size is 1)
+# - CN-TS(M=1): single reward sample
+# - CN-TS: optimistic sampling, sample size = 10 
 # 
 # ### Ablation study of feature dimension *d* and neural network width *m*
-# - Default value: $d = 20, m = 20$
-# - $d = \{20, 40\}$  for all algorithms
+# - Default value: $d = 40, m = 20$
 
 # # Experiment settings
 
@@ -171,7 +174,7 @@ class Bandit():
             else:
                 x = np.random.randn(self.T, self.n_arms, self.n_features)
             x /= np.repeat(np.linalg.norm(x, axis=-1, ord=2), self.n_features).reshape(self.T, self.n_arms, self.n_features)
-            X[i] = x
+            X[i] = x        
         return torch.from_numpy(X).to(self.device) 
     
     def generate_noise(self):
@@ -183,7 +186,7 @@ class Bandit():
         np.random.seed(SEED_NOISE)
         for i in range(self.n_sim):   
             x = np.random.randn(self.T, self.n_arms)        
-            xi[i] = x
+            xi[i] = x        
         return torch.from_numpy(xi).to(device)
                                                                             
     def reset(self, i):
@@ -408,7 +411,7 @@ class UCB_TS(abc.ABC):
         for a in self.bandit.arms:
             self.optimistic_sample_rewards[self.iteration][a] = torch.max(self.sample_rewards[self.iteration][a])
     
-    def sample_multi_rewards():
+    def sample_multi_rewards(self):
         self.sample_rewards.to('cpu')
         for a in self.bandit.arms:
             for j in range(self.bandit.n_samples):
@@ -632,6 +635,7 @@ PI = 3.14
 h1 = "h1"
 h2 = "h2"
 h3 = "h3"
+h4 = "h4"
 
 
 # In[ ]:
@@ -659,6 +663,10 @@ def experiment(lin_neural, ucb_ts, h_str, n_features=20, hidden_size=100, n_samp
         T = 2000
         def h(x):
             return torch.cos(PI*torch.dot(x, a)).to(device)
+    elif h_str == "h4":
+        T = 1000
+        def h(x):
+            return torch.sin(PI*torch.dot(x, a)).to(device)
     
     ## Bandit
     bandit = Bandit(T,
@@ -732,7 +740,7 @@ def experiment(lin_neural, ucb_ts, h_str, n_features=20, hidden_size=100, n_samp
 n_arms = 20 # N
 n_features_default = 20 # d
 n_assortment = 4 # K
-n_samples = 30 # M, number of samples per each round and arm, for TS
+n_samples = 10 # M, number of samples per each round and arm, for TS
 
 noise_std = 0.01 # noise of reward: xi = noise_std*N(0,1)
 
@@ -749,8 +757,7 @@ def F(x): # round_reward_function
 # In[ ]:
 
 
-### reg_factor = 0.5 # lambda
-reg_factor = 2 # lambda
+reg_factor = 1 # lambda
 delta = 0.1 # delta
 exploration_variance = 1 # nu, for TS and CombLinUCB
 confidence_scaling_factor = 1 # gamma, for CN-UCB
@@ -781,62 +788,84 @@ else:
 device
 
 
-# ### (h1, 80, 40)
+# ### d=20, m=20
+
+# ### (h1)
 
 # In[ ]:
 
 
-experiment(Neural, "UCB", h1, n_features=80, hidden_size=40, save='reg_h1_CNUCB_80_40')
-
-
-# In[ ]:
-
-
-experiment(Neural, "TS", h1, n_features=80, hidden_size=40, save='reg_h1_CNTS_80_40')
+experiment(Neural, "UCB", h1, n_features=20, hidden_size=20, save='reg_h1_CNUCB_20_20')
 
 
 # In[ ]:
 
 
-experiment(Neural, "TS", h1, n_features=80, hidden_size=40, n_samples=10, save='reg_h1_CNTSOpt_80_40')
-
-
-# ### (h2, 80, 40)
-
-# In[ ]:
-
-
-experiment(Neural, "UCB", h2, n_features=80, hidden_size=40, save='reg_h2_CNUCB_80_40')
+experiment(Neural, "TS", h1, n_features=20, hidden_size=20, save='reg_h1_CNTS(M=1)_20_20')
 
 
 # In[ ]:
 
 
-experiment(Neural, "TS", h2, n_features=80, hidden_size=40, save='reg_h2_CNTS_80_40')
+experiment(Neural, "TS", h1, n_features=80, hidden_size=40, n_samples=10, save='reg_h1_CNTS_20_20')
+
+
+# ### (h2)
+
+# In[ ]:
+
+
+experiment(Neural, "UCB", h2, n_features=20, hidden_size=20, save='reg_h2_CNUCB_20_20')
 
 
 # In[ ]:
 
 
-experiment(Neural, "TS", h2, n_features=80, hidden_size=40, n_samples=10, save='reg_h2_CNTSOpt_80_40')
-
-
-# ### (h3, 80, 40)
-
-# In[ ]:
-
-
-experiment(Neural, "UCB", h3, n_features=80, hidden_size=40, save='reg_h3_CNUCB_80_40')
+experiment(Neural, "TS", h2, n_features=20, hidden_size=20, save='reg_h2_CNTS(M=1)_20_20')
 
 
 # In[ ]:
 
 
-experiment(Neural, "TS", h3, n_features=80, hidden_size=40, save='reg_h3_CNTS_80_40')
+experiment(Neural, "TS", h2, n_features=80, hidden_size=40, n_samples=10, save='reg_h2_CNTS_20_20')
+
+
+# ### (h3)
+
+# In[ ]:
+
+
+experiment(Neural, "UCB", h3, n_features=20, hidden_size=20, save='reg_h3_CNUCB_20_20')
 
 
 # In[ ]:
 
 
-experiment(Neural, "TS", h3, n_features=80, hidden_size=40, n_samples=10, save='reg_h3_CNTSOpt_80_40')
+experiment(Neural, "TS", h3, n_features=20, hidden_size=20, save='reg_h3_CNTS(M=1)_20_20')
+
+
+# In[ ]:
+
+
+experiment(Neural, "TS", h3, n_features=80, hidden_size=40, n_samples=10, save='reg_h3_CNTS_20_20')
+
+
+# ### (h4)
+
+# In[ ]:
+
+
+experiment(Neural, "UCB", h4, n_features=20, hidden_size=20, save='reg_h4_CNUCB_20_20')
+
+
+# In[ ]:
+
+
+experiment(Neural, "TS", h4, n_features=20, hidden_size=20, save='reg_h4_CNTS(M=1)_20_20')
+
+
+# In[ ]:
+
+
+experiment(Neural, "TS", h4, n_features=80, hidden_size=40, n_samples=10, save='reg_h4_CNTS_20_20')
 
